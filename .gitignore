@@ -1,0 +1,87 @@
+# Python相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+Pipfile.lock
+
+# IDE相关
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+
+# 项目相关
+*.log
+logs/
+test.db
+.env.local
+.env.development
+.env.test
+.env.production
+*.db
+*.sqlite
+*.sqlite3
+
+# 临时文件
+.tmp/
+temp/
+tmp/
+
+# 证书和敏感信息
+*.pem
+*.key
+*.cert
+*.crt
+.env.secret
+
+# 依赖管理
+poetry.lock
+package-lock.json
+node_modules/
+
+# 构建输出
+.ruff_cache/
+.mypy_cache/
+__pypackages__/
+/mysql_data/
+/.idea/*
