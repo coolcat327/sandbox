@@ -4,7 +4,7 @@ FROM python:3.11.4-slim-bullseye AS base
 WORKDIR /app
 
 # Install Poetry
-ENV POETRY_VERSION=1.8.3
+ENV POETRY_VERSION=2.1.2
 ENV POETRY_HOME=/opt/poetry
 ENV POETRY_CACHE_DIR=/tmp/poetry_cache
 ENV POETRY_NO_INTERACTION=1
@@ -34,7 +34,7 @@ RUN apt-get update \
 # 安装项目依赖
 COPY pyproject.toml poetry.lock ./
 RUN --mount=type=cache,target=/tmp/poetry_cache \
-    poetry install --no-dev --no-root
+    poetry install --no-root
 
 # Final stage
 FROM base AS final
@@ -61,5 +61,5 @@ ENV PATH="/app/.venv/bin:$PATH"
 # 创建必要的目录
 RUN mkdir -p logs
 
-# 复制项目文件
-COPY app/ app/
+# 复制app下文件到容器/app目录
+COPY app /app

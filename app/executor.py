@@ -4,9 +4,11 @@ import io
 import tempfile
 import os
 import subprocess
+import logging
 from contextlib import redirect_stdout, redirect_stderr
 from typing import Dict, Any
 from concurrent.futures import ProcessPoolExecutor
+from config import settings
 
 
 def _run_python_code_in_process(code: str) -> Dict[str, Any]:
@@ -93,12 +95,21 @@ class CodeExecutor:
         self.timeout = timeout
         self.process_pool = ProcessPoolExecutor(max_workers=max_workers)
         self.nodejs_available = check_nodejs_available()
+        
+        # 配置日志系统
+        logging.basicConfig(
+            level=settings.LOG_LEVEL,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        self.logger = logging.getLogger(__name__)
 
     async def shutdown(self):
         """关闭进程池"""
         self.process_pool.shutdown(wait=True)
 
     async def execute(self, code: str, language: str = "python3") -> Dict[str, Any]:
+        self.logger.debug(f"开始执行{language}代码，代码长度：{len(code)}字符")
         try:
             loop = asyncio.get_event_loop()
 
@@ -125,15 +136,18 @@ class CodeExecutor:
                 code
             )
             result = await asyncio.wait_for(future, timeout=self.timeout)
+            self.logger.debug(f"代码执行完成，结果：{result['success'] and '成功' or '失败'}")
             return result
 
         except asyncio.TimeoutError:
+            self.logger.debug(f"代码执行超时，时限：{self.timeout}秒")
             return {
                 "success": False,
                 "output": "",
                 "error": f"代码执行超时 (>{self.timeout}秒)"
             }
         except Exception as e:
+            self.logger.debug(f"执行过程中发生异常：{str(e)}", exc_info=True)
             return {
                 "success": False,
                 "output": "",

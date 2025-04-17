@@ -73,8 +73,8 @@ read -r version
 version=${version:-$DEFAULT_VERSION}
 
 # 设置镜像标签和文件名前缀
-image_tag="prompt_platform:$version"
-pre_file_name="prompt_platform-$version"
+image_tag="sandbox:$version"
+pre_file_name="sandbox-$version"
 
 # 执行构建和保存
 if build_docker_image "$platform" "$workdir" "$image_tag"; then

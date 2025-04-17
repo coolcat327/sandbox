@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 import asyncio
 from executor import CodeExecutor
-from .config import settings
+from config import settings
 
 # 配置从settings实例获取
 API_KEY = settings.API_KEY
