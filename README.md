@@ -42,14 +42,6 @@ python app/main.py
 | MAX_WORKERS | 30 | 工作线程池大小 |
 | WORKER_TIMEOUT | 60 | 任务超时时间(秒) |
 
-## 使用示例
-```bash
-curl -X POST \
-  -H "Authorization: Bearer aioai-sandbox" \
-  -H "Content-Type: application/json" \
-  -d '{"code":"print(\"Hello World\")"}' \
-  http://localhost:8194/execute
-```
 
 ## 注意事项
 1. 请将.env.example复制为.env，并根据实际情况修改
