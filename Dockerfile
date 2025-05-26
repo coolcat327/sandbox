@@ -37,7 +37,7 @@ COPY pyproject.toml ./
 
 
 RUN --mount=type=cache,target=/tmp/poetry_cache \
-    poetry lock --no-update 2>&1 && poetry install --no-root
+    poetry lock 2>&1 && poetry install --no-root
 
 # Final stage
 FROM base AS final
