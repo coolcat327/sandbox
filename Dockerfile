@@ -32,9 +32,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装项目依赖
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml ./
+# 执行命令poetry lock
+
+
 RUN --mount=type=cache,target=/tmp/poetry_cache \
-    poetry install --no-root
+    poetry lock --no-update 2>&1 && poetry install --no-root
 
 # Final stage
 FROM base AS final
