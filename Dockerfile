@@ -55,7 +55,22 @@ RUN apt-get update \
         curl \
         wget \
         vim \
+        fontconfig # 安装fontconfig，用于字体配置
     && rm -rf /var/lib/apt/lists/*
+
+# **添加中文字体**
+# 安装常用的中文字体包
+# ttf-wqy-zenhei 是文泉驿正黑，效果不错
+# ttf-wqy-microhei 是文泉驿微米黑，更小巧
+# fonts-wqy-microhei 同ttf-wqy-microhei
+# fonts-noto-cjk 包含思源黑体等
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ttf-wqy-zenhei \
+        ttf-wqy-microhei \
+        fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv # 更新字体缓存
 
 # 复制依赖
 COPY --from=dependencies /app/.venv /app/.venv
