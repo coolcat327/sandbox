@@ -55,7 +55,7 @@ RUN apt-get update \
         curl \
         wget \
         vim \
-        fontconfig # 安装fontconfig，用于字体配置
+        fontconfig\
     && rm -rf /var/lib/apt/lists/*
 
 # **添加中文字体**
