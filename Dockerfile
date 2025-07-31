@@ -81,3 +81,7 @@ RUN mkdir -p logs
 
 # 复制app下文件到容器/app目录
 COPY app /app
+
+# 添加健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8194/health || exit 1

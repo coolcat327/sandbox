@@ -98,7 +98,10 @@ async def execute_code(request: CodeRequest):
             "stdout": result["output"] or "",
         }
     }
-
+# 添加一个健康检测接口
+@app.get("/health")
+async def health_check():
+    return "ok"
 
 if __name__ == "__main__":
     import uvicorn

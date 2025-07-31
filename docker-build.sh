@@ -51,7 +51,7 @@ save_docker_image() {
 
 # 设置默认值
 DEFAULT_WORKDIR="./"
-DEFAULT_OUTPUT_DIR="/Users/qt/Desktop/docker_images"
+DEFAULT_OUTPUT_DIR="../images"
 DEFAULT_PLATFORM="linux/amd64"
 DEFAULT_VERSION="latest"
 
