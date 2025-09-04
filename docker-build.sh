@@ -43,7 +43,7 @@ save_docker_image() {
     fi
 
     # 保存 Docker 镜像为带有镜像ID和时间戳的 tar 文件
-    local tar_file="${output_dir}/${pre_file_name}-${image_id}-${current_time}.tar"
+    local tar_file="${output_dir}/${pre_file_name}-${current_time}-${image_id}.tar"
     echo "正在保存 Docker 镜像..."
     docker save "$tag" -o "$tar_file"
 
