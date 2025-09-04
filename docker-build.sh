@@ -15,10 +15,7 @@ build_docker_image() {
 
     echo "开始构建 Docker 镜像..."
     if docker build --platform "$platform" --build-arg DOCKER_BUILDKIT=1 -t "$tag" .; then
-        # 获取镜像ID
-        local image_id=$(docker images -q "$tag")
-        echo "Docker 镜像构建成功: $image_id"
-        echo "$image_id"
+        echo "Docker 镜像构建成功"
         return 0
     else
         echo "Docker 镜像构建失败"
@@ -31,13 +28,21 @@ save_docker_image() {
     local tag=$1
     local output_dir=$2
     local pre_file_name=$3
-    local image_id=$4
     local current_time=$(get_current_time)
 
     # 确保保存目录存在
     mkdir -p "$output_dir"
 
-    # 保存 Docker 镜像为带有时间戳和镜像ID的 tar 文件
+    # 使用 docker images 获取镜像ID
+    local image_id=$(docker images -q "$tag")
+
+    # 检查是否成功获取到镜像ID
+    if [ -z "$image_id" ]; then
+        echo "错误：无法获取镜像ID，保存失败。"
+        return 1
+    fi
+
+    # 保存 Docker 镜像为带有镜像ID和时间戳的 tar 文件
     local tar_file="${output_dir}/${pre_file_name}-${image_id}-${current_time}.tar"
     echo "正在保存 Docker 镜像..."
     docker save "$tag" -o "$tar_file"
@@ -50,6 +55,7 @@ save_docker_image() {
         echo "Docker 镜像已成功保存并压缩至 ${tar_file}.gz"
     else
         echo "错误：Docker 镜像保存失败"
+        return 1
     fi
 }
 
@@ -81,9 +87,8 @@ image_tag="sandbox:$version"
 pre_file_name="sandbox-$version"
 
 # 执行构建和保存
-image_id=$(build_docker_image "$platform" "$workdir" "$image_tag")
-if [ $? -eq 0 ]; then
-    save_docker_image "$image_tag" "$output_directory" "$pre_file_name" "$image_id"
+if build_docker_image "$platform" "$workdir" "$image_tag"; then
+    save_docker_image "$image_tag" "$output_directory" "$pre_file_name"
 else
     echo "构建失败，退出脚本"
     exit 1
