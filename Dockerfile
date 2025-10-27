@@ -49,15 +49,19 @@ ENV TZ=Asia/Shanghai
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-# 安装运行时依赖和常用工具
+# 安装运行时依赖和常用工具和
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         default-mysql-client \
         curl \
         wget \
         vim \
-        fontconfig\
+        fontconfig \
+        nodejs \
+        npm \
+        busybox \
     && rm -rf /var/lib/apt/lists/*
+
 
 # **添加中文字体**
 # 安装常用的中文字体包
