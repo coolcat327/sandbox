@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     # 执行器配置
     WORKER_TIMEOUT: float = 60
     # 进程池重启计划
-    POOL_RESTART_CRON = "0 0 * * *"
+    POOL_RESTART_CRON: str = "0 0 * * *"
     # 使用内存限制 MB
-    MAX_MEMORY_THRESHOLD = 2048
+    MAX_MEMORY_THRESHOLD: int = 2048
 
     # 日志
     LOG_LEVEL: str = "INFO"
