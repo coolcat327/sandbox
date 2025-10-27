@@ -49,10 +49,22 @@ save_docker_image() {
 
     # 判断镜像保存是否成功
     if [ -f "$tar_file" ]; then
-        # 使用 gzip 进行压缩
-        echo "正在压缩镜像文件..."
-        gzip "$tar_file"
-        echo "Docker 镜像已成功保存并压缩至 ${tar_file}.gz"
+        # 检测并使用可用的压缩工具
+        if command -v pigz >/dev/null 2>&1; then
+            # 使用 pigz 并行压缩
+            echo "使用 pigz 压缩镜像..."
+            pigz "$tar_file"
+            echo "Docker 镜像已成功保存并压缩至 ${tar_file}.gz"
+        elif command -v gzip >/dev/null 2>&1; then
+            # 使用标准 gzip 压缩
+            echo "使用 gzip 压缩镜像..."
+            gzip "$tar_file"
+            echo "Docker 镜像已成功保存并压缩至 ${tar_file}.gz"
+        else
+            # 没有可用的压缩工具，不进行压缩
+            echo "警告：未找到 pigz 或 gzip 压缩工具，镜像未压缩"
+            echo "Docker 镜像已成功保存至 $tar_file"
+        fi
     else
         echo "错误：Docker 镜像保存失败"
         return 1

@@ -74,11 +74,6 @@ app.add_middleware(AuthMiddleware)
 app.add_middleware(ConcurrencyMiddleware)
 
 
-@app.get("/health")
-async def health_check():
-    return "ok"
-
-
 @app.post("/v1/sandbox/run")
 async def execute_code(request: CodeRequest):
     if request.language not in ["python3", "nodejs"]:
@@ -105,5 +100,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8194)
