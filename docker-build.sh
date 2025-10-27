@@ -11,9 +11,9 @@ build_docker_image() {
     local workdir=$2
     local tag=$3
 
-    git pull
-    cd "$workdir" || { echo "目录切换失败: $workdir"; return 1; }
 
+    cd "$workdir" || { echo "目录切换失败: $workdir"; return 1; }
+    git pull
     echo "开始构建 Docker 镜像..."
     if docker build --platform "$platform" --build-arg DOCKER_BUILDKIT=1 -t "$tag" .; then
         echo "Docker 镜像构建成功"
