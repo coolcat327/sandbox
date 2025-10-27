@@ -11,6 +11,7 @@ build_docker_image() {
     local workdir=$2
     local tag=$3
 
+    git pull
     cd "$workdir" || { echo "目录切换失败: $workdir"; return 1; }
 
     echo "开始构建 Docker 镜像..."
