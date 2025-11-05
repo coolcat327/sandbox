@@ -13,7 +13,6 @@ build_docker_image() {
 
 
     cd "$workdir" || { echo "目录切换失败: $workdir"; return 1; }
-    git pull
     echo "开始构建 Docker 镜像..."
     if docker build --platform "$platform" --build-arg DOCKER_BUILDKIT=1 -t "$tag" .; then
         echo "Docker 镜像构建成功"
@@ -78,6 +77,8 @@ DEFAULT_OUTPUT_DIR="../images"
 DEFAULT_PLATFORM="linux/amd64"
 DEFAULT_VERSION="latest"
 
+# 更新代码
+git pull
 # 获取用户输入
 echo -n "请输入项目目录（默认：$DEFAULT_WORKDIR ): "
 read -r workdir
