@@ -38,7 +38,7 @@ COPY pyproject.toml ./
 
 
 RUN --mount=type=cache,target=/tmp/poetry_cache \
-    && poetry install --no-root
+    poetry install --no-root
 
 # Final stage
 FROM base AS final
