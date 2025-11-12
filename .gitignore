@@ -75,8 +75,6 @@ tmp/
 .env.secret
 
 # 依赖管理
-poetry.lock
-package-lock.json
 node_modules/
 
 # 构建输出
