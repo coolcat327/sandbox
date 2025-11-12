@@ -38,7 +38,6 @@ COPY pyproject.toml ./
 
 
 RUN --mount=type=cache,target=/tmp/poetry_cache \
-    #poetry lock 2>&1 \
     && poetry install --no-root
 
 # Final stage
