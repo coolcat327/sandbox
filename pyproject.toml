@@ -40,7 +40,8 @@ dependencies = [
     "cryptography (>=45.0.4,<46.0.0)",
     "scipy (>=1.16.1,<2.0.0)",
     "apscheduler (>=3.11.0,<4.0.0)",
-    "pyecharts (>=2.0.9,<3.0.0)"
+    "pyecharts (>=2.0.9,<3.0.0)",
+    "opencc-python-reimplemented (>=0.1.7,<0.2.0)"
 
 
 ]

@@ -2,9 +2,11 @@ version: '3.8'
 
 services:
   sandbox:
+    # 与build的image一致即可
     image: sandbox:0.1.2
     restart: always
     environment:
+      # 和api镜像的API_KEY一致
       API_KEY: aioai-sandbox
       MAX_REQUESTS: 100
       MAX_WORKERS: 30

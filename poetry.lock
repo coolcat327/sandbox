@@ -1008,6 +1008,23 @@ url = "https://mirrors.aliyun.com/pypi/simple"
 reference = "ali"
 
 [[package]]
+name = "opencc-python-reimplemented"
+version = "0.1.7"
+description = "OpenCC made with Python"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "opencc-python-reimplemented-0.1.7.tar.gz", hash = "sha256:4f777ea3461a25257a7b876112cfa90bb6acabc6dfb843bf4d11266e43579dee"},
+    {file = "opencc_python_reimplemented-0.1.7-py2.py3-none-any.whl", hash = "sha256:41b3b92943c7bed291f448e9c7fad4b577c8c2eae30fcfe5a74edf8818493aa6"},
+]
+
+[package.source]
+type = "legacy"
+url = "https://mirrors.aliyun.com/pypi/simple"
+reference = "ali"
+
+[[package]]
 name = "openpyxl"
 version = "3.1.5"
 description = "A Python library to read/write Excel 2010 xlsx/xlsm files"
@@ -2070,4 +2087,4 @@ reference = "ali"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11"
-content-hash = "a34a6f4617740e904326134deffcd00b75f154d4147bbc15e1da95d6fdb87f6a"
+content-hash = "b4105d842e566356fbc59efdb8a40a3814b27c78b1075eef35263f041ae19375"
