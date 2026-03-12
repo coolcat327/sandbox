@@ -88,10 +88,13 @@ async def _run_code_async_safe(
 
     try:
         # 1. 创建临时文件来存储代码
-        # 显式指定 dir="/tmp" 确保沙箱里的 sandbox_user 有权限写入
+        # 显式指定 dir="/tmp"；root 写入后，chmod 644 确保 sandbox_user 可以读取并执行
         with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, dir='/tmp', delete=False) as temp_file:
             temp_file.write(code)
             temp_file_path = temp_file.name
+        # tempfile 默认权限是 600 (只有 owner/root 可读)
+        # 必须改为 644，否则降权后的 sandbox_user 子进程无法读取该文件
+        os.chmod(temp_file_path, 0o644)
 
         # 2. 使用 asyncio.create_subprocess_exec 执行代码
         kwargs = {
