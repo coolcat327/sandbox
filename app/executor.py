@@ -79,7 +79,8 @@ async def _run_code_async_safe(
 
     try:
         # 1. 创建临时文件来存储代码
-        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as temp_file:
+        # 显式指定 dir="/tmp" 确保沙箱里的 sandbox_user 有权限写入
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, dir='/tmp', delete=False) as temp_file:
             temp_file.write(code)
             temp_file_path = temp_file.name
 

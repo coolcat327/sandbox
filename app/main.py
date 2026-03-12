@@ -5,6 +5,7 @@ from typing import Optional
 import asyncio
 from executor import CodeExecutor
 from config import settings
+from fastapi.responses import JSONResponse
 
 # 配置从settings实例获取
 API_KEY = settings.API_KEY
@@ -30,8 +31,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.url.path.startswith("/v1/sandbox"):
             api_key = request.headers.get("X-Api-Key")
             if not api_key or api_key != API_KEY:
-                # 修改这里：返回 JSONResponse 而不是直接返回 HTTPException
-                from fastapi.responses import JSONResponse
                 return JSONResponse(
                     status_code=401,
                     content={
@@ -53,11 +52,14 @@ class ConcurrencyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.url.path.startswith("/v1/sandbox/run"):
             if self.current_requests >= MAX_REQUESTS:
-                return {
-                    "code": -503,
-                    "message": "Too many requests",
-                    "data": None
-                }
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "code": -503,
+                        "message": "Too many requests",
+                        "data": None
+                    }
+                )
 
             self.current_requests += 1
             try:

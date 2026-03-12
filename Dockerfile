@@ -24,12 +24,12 @@ FROM base AS dependencies
 # 安装编译依赖
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        gcc \
-        g++ \
-        libc-dev \
-        libffi-dev \
-        default-libmysqlclient-dev \
-        pkg-config \
+    gcc \
+    g++ \
+    libc-dev \
+    libffi-dev \
+    default-libmysqlclient-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装项目依赖
@@ -49,14 +49,14 @@ ENV PYTHONUNBUFFERED=1
 # 安装运行时依赖和常用工具和
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        default-mysql-client \
-        curl \
-        wget \
-        vim \
-        fontconfig \
-        nodejs \
-        npm \
-        busybox \
+    default-mysql-client \
+    curl \
+    wget \
+    vim \
+    fontconfig \
+    nodejs \
+    npm \
+    busybox \
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -68,9 +68,9 @@ RUN apt-get update \
 # fonts-noto-cjk 包含思源黑体等
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ttf-wqy-zenhei \
-        ttf-wqy-microhei \
-        fonts-noto-cjk \
+    ttf-wqy-zenhei \
+    ttf-wqy-microhei \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -fv # 更新字体缓存
 
@@ -83,6 +83,16 @@ RUN mkdir -p logs
 
 # 复制app下文件到容器/app目录
 COPY app /app
+
+# 为了安全：创建非 root 用户并限制权限，防止恶意代码删除项目文件
+RUN useradd -m -u 1000 sandbox_user \
+    && chown -R root:root /app \
+    && chmod -R 555 /app \
+    && chown -R sandbox_user:sandbox_user /app/logs \
+    && chmod -R 755 /app/logs
+
+# 切换到非 root 用户运行
+USER sandbox_user
 
 # 添加健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
