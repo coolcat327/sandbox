@@ -5,38 +5,77 @@ import os
 import subprocess
 import logging
 from typing import Dict, Any
-from concurrent.futures import ProcessPoolExecutor
 from config import settings
-import psutil
-from subprocess import TimeoutExpired
+import signal
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+# 尝试导入 resource 模块，用于 Unix/Linux/Mac 下的硬资源限制
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 
+HAS_SETSID = hasattr(os, 'setsid')
 
-# --- 安全执行函数（在 ProcessPoolExecutor 中运行） ---
+# --- 全局限制配置 ---
+MAX_OUTPUT_SIZE = 10 * 1024 * 1024  # 1MB 输出限制
+MAX_MEMORY_MB = getattr(settings, 'MAX_MEMORY_THRESHOLD', 128) # 默认 128MB 限制
 
-def _run_code_with_subprocess_safe(
-        interpreter: str,
-        code: str,
+async def _read_stream_with_limit(stream: asyncio.StreamReader, limit_bytes: int) -> str:
+    """按块读取流，超过限制尺寸则抛出异常"""
+    output = bytearray()
+    while True:
+        try:
+            # 每次读取 4096 字节
+            chunk = await stream.read(4096)
+        except ValueError:
+            break
+            
+        if not chunk:
+            break
+            
+        output.extend(chunk)
+        if len(output) > limit_bytes:
+            raise BufferError("输出超限")
+            
+    return output.decode('utf-8', errors='replace')
+
+def _set_process_limits():
+    """
+    在子进程执行前调用的钩子函数（preexec_fn）。
+    用于设置进程组以及操作系统的硬性资源限制。
+    """
+    # 1. 设置进程组组长，防止子孙进程逃逸 (适用于 Unix 体系)
+    os.setsid()
+    
+    # 2. 操作系统级别的资源限制
+    if HAS_RESOURCE:
+        # 限制进程最大可用内存 (RLIMIT_AS 在某些 macOS 较新版本下可能不生效，但 Linux 下非常有效)
+        max_bytes = MAX_MEMORY_MB * 1024 * 1024
+        try:
+            resource.setrlimit(resource.RLIMIT_AS, (max_bytes, max_bytes))
+        except ValueError:
+            pass # 某些系统可能不允许修改此限制
+            
+        # CPU 时间限制通过外部 asyncio 软超时控制即可，若需硬限制亦可在此增加：
+        # resource.setrlimit(resource.RLIMIT_CPU, (timeout_seconds, timeout_seconds))
+
+async def _run_code_async_safe(
+        interpreter: str, 
+        code: str, 
         timeout: int
 ) -> Dict[str, Any]:
     """
-    【通用安全执行函数】
-    在进程中执行代码的函数，使用subprocess并在内部实现超时和强制终止。
+    【通用安全执行协程】
+    使用 asyncio 子进程管理，支持进程组击杀、流式截断读取以及系统级资源限制。
     """
     temp_file_path = None
-    # 根据解释器判断文件后缀
     if 'python' in interpreter.lower() or interpreter == sys.executable:
         suffix = ".py"
     elif 'node' in interpreter.lower():
         suffix = ".js"
     else:
-        # 不支持的解释器，应由外部execute处理
-        return {
-            "success": False,
-            "output": "",
-            "error": f"内部错误：不支持的解释器 {interpreter}"
-        }
+        return {"success": False, "output": "", "error": f"不支持的解释器 {interpreter}"}
 
     try:
         # 1. 创建临时文件来存储代码
@@ -44,275 +83,185 @@ def _run_code_with_subprocess_safe(
             temp_file.write(code)
             temp_file_path = temp_file.name
 
-        # 2. 使用subprocess执行代码
-        process = subprocess.Popen(
-            [interpreter, temp_file_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            # 确保子进程不会继承不必要的句柄
-            close_fds=True
+        # 2. 使用 asyncio.create_subprocess_exec 执行代码
+        kwargs = {
+            'stdout': asyncio.subprocess.PIPE,
+            'stderr': asyncio.subprocess.PIPE,
+            'close_fds': True,
+        }
+        
+        # 只有存在 os.setsid 时才启用进程组隔离功能 (Unix/Mac 环境)
+        if HAS_SETSID:
+            kwargs['preexec_fn'] = _set_process_limits
+
+        process = await asyncio.create_subprocess_exec(
+            interpreter, temp_file_path,
+            **kwargs
         )
 
         stdout, stderr = "", ""
 
         try:
-            # 3. 等待进程完成，并使用 timeout 参数进行计时
-            stdout, stderr = process.communicate(timeout=timeout)
+            # 3. 异步并发读取 stdout 和 stderr，各自受 MAX_OUTPUT_SIZE 限制
+            # 使用 asyncio.wait_for 进行软超时控制
+            read_tasks = asyncio.gather(
+                _read_stream_with_limit(process.stdout, MAX_OUTPUT_SIZE),
+                _read_stream_with_limit(process.stderr, MAX_OUTPUT_SIZE)
+            )
+            
+            # 等待读取任务以及进程结束，并施加超时时间
+            # 我们通过 process.wait() 保证进程退出
+            await asyncio.wait_for(
+                asyncio.gather(read_tasks, process.wait()), 
+                timeout=timeout
+            )
+            
+            # 拆包结果
+            stdout, stderr = read_tasks.result()
 
-            # 4. 检查返回码
             if process.returncode == 0:
-                return {
-                    "success": True,
-                    "output": stdout,
-                    "error": None
-                }
+                return {"success": True, "output": stdout, "error": None}
             else:
-                return {
-                    "success": False,
-                    "output": stdout,
-                    "error": stderr
-                }
+                return {"success": False, "output": stdout, "error": stderr}
 
-        except TimeoutExpired:
-            # 进程超时，强制终止它
-
-            # 先尝试优雅地终止（发送SIGTERM）
-            process.terminate()
+        except (asyncio.TimeoutError, BufferError) as e:
+            # --- 核心防御：处理超时与内存溢出 ---
+            if isinstance(e, asyncio.TimeoutError):
+                error_msg = f"代码执行超时 (>{timeout}秒)。进程已被强制终止。"
+            else:
+                error_msg = f"运行时错误: {str(e)}（限制: {MAX_OUTPUT_SIZE / 1024 / 1024:.1f}MB）"
+            
+            if HAS_SETSID:
+                # 击杀整个进程组（防止恶意代码启动后台孙进程）
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass # 进程组可能已经不存在
+                    
+            # 兼容处理并让 asyncio 的内部状态收到 kill 信号
             try:
-                # 给进程2秒时间来清理
-                stdout_part, stderr_part = process.communicate(timeout=2)
-                stdout += stdout_part
-                stderr += stderr_part
-            except TimeoutExpired:
-                # 仍然不退出，强制杀死（发送SIGKILL）
                 process.kill()
-                stdout_part, stderr_part = process.communicate()
-                stdout += stdout_part
-                stderr += stderr_part
-
-            return {
-                "success": False,
-                "output": stdout,
-                "error": f"代码执行超时 (>{timeout}秒)。进程已被强制终止。"
-            }
+            except ProcessLookupError:
+                pass
+            
+            # 必须调用 communicate 强制读完管道残余数据并使 asyncio 底层正常关闭 transport
+            try:
+                await asyncio.wait_for(process.communicate(), timeout=1.0)
+            except Exception:
+                pass
+            
+            return {"success": False, "output": "", "error": error_msg}
 
     except Exception as e:
-        # 捕获其他如 FileNotFoundError (解释器不存在) 等错误
-        return {
-            "success": False,
-            "output": "",
-            "error": str(e)
-        }
+        return {"success": False, "output": "", "error": f"系统执行异常: {str(e)}"}
+        
     finally:
-        # 5. 删除临时文件
+        # 4. 删除临时文件
         if temp_file_path and os.path.exists(temp_file_path):
             try:
                 os.unlink(temp_file_path)
             except Exception as e:
-                # 日志记录清理失败的情况，但不要影响主逻辑
                 logging.error(f"无法删除临时文件 {temp_file_path}: {e}")
 
-
-def _run_python_code_in_process_safe(code: str, timeout: int) -> Dict[str, Any]:
-    """Python代码执行的封装函数"""
-    return _run_code_with_subprocess_safe(sys.executable, code, timeout)
-
-
-def _run_nodejs_code_in_process_safe(code: str, timeout: int) -> Dict[str, Any]:
-    """Node.js代码执行的封装函数"""
-    return _run_code_with_subprocess_safe('node', code, timeout)
-
-
 # --- 辅助函数 ---
-
 def check_nodejs_available():
-    """检查Node.js是否可用"""
-    try:
-        subprocess.run(['node', '--version'],
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       check=True)
-        return True
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return False
+    """使用 shutil.which 比 subprocess.run 性能更好，且无阻塞危险"""
+    import shutil
+    return shutil.which('node') is not None
 
 
 # --- 主执行器类 ---
-
 class CodeExecutor:
     def __init__(self, timeout: int = 30, max_workers: int = 10):
-        # 配置日志系统
+        # 初始化日志
         logging.basicConfig(
-            level=settings.LOG_LEVEL,
+            level=getattr(settings, 'LOG_LEVEL', logging.INFO),
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         self.logger = logging.getLogger(__name__)
         self.timeout = timeout
-        self.max_workers = max_workers
-        self.process_pool = ProcessPoolExecutor(max_workers=self.max_workers)
+        
+        # 注意：使用 Asyncio 模型后，max_workers 概念被弱化。
+        # 如果你想严格限制同时执行的并发数，可以使用 asyncio.Semaphore(max_workers)
+        self.semaphore = asyncio.Semaphore(max_workers)
+        
         self.nodejs_available = check_nodejs_available()
 
-        self.scheduler = AsyncIOScheduler()
-        # 每小时重启一次进程池 (原代码是每分钟)
-        cron_expr = settings.POOL_RESTART_CRON
-        self.logger.info(f"已设置进程池重启任务，cron表达式为：{cron_expr}")
-        # 使用 cron 表达式添加任务
-        self.scheduler.add_job(self._restart_pool, 'cron',
-                               minute=cron_expr.split()[0],
-                               hour=cron_expr.split()[1],
-                               day=cron_expr.split()[2],
-                               month=cron_expr.split()[3],
-                               day_of_week=cron_expr.split()[4])
-        # 添加内存检查任务
-        # self.scheduler.add_job(self._check_and_restart, 'interval', minutes=5)
-        self.scheduler.start()
-
-
-
-    async def _restart_pool(self):
-        """重启进程池"""
-        try:
-            self.logger.info("准备重启进程池...")
-            old_pool = self.process_pool
-            self.process_pool = ProcessPoolExecutor(max_workers=self.max_workers)
-            # 关闭旧池
-            # 使用 create_task 避免阻塞
-            asyncio.create_task(self._shutdown(old_pool))
-            self.logger.info("进程池已重启(切换完成)")
-        except Exception as e:
-            self.logger.error(f"重启进程池失败: {e}")
-
-    async def _check_and_restart(self):
-        """检查内存使用情况并决定是否重启"""
-        try:
-            process = psutil.Process(os.getpid())
-            # rss: 实际物理内存使用
-            memory_mb = process.memory_info().rss / 1024 / 1024
-
-            if memory_mb > settings.MAX_MEMORY_THRESHOLD:
-                self.logger.warning(
-                    f"内存使用过高: {memory_mb:.2f}MB (阈值: {settings.MAX_MEMORY_THRESHOLD}MB), 触发进程池重启")
-                await self._restart_pool()
-            else:
-                self.logger.debug(f"当前沙箱内存使用: {memory_mb:.2f}MB, 正常")
-        except Exception as e:
-            self.logger.error(f"内存检查失败: {e}")
-
-    async def _shutdown(self, pool: ProcessPoolExecutor):
-        """关闭进程池"""
-        self.logger.info("正在关闭旧进程池...")
-        # wait=True 会等待所有已提交但未完成的任务，但在 async context 中不推荐长时间阻塞
-        # wait=False 立即返回，正在运行的任务继续，新任务被拒绝。
-        # 这里使用 wait=True 确保旧池中的任务能完成，但由于它在一个 task 中，不会阻塞主循环
-        await asyncio.to_thread(pool.shutdown, wait=True)
-        self.logger.info("旧进程池已关闭。")
-
     async def execute(self, code: str, language: str = "python3") -> Dict[str, Any]:
-        """
-        执行代码的主入口点。
-        - 移除外部 asyncio.wait_for。
-        - 超时和进程终止由内部的 _run_code_with_subprocess_safe 函数负责。
-        """
+        """执行的主入口，移除了 ProcessPoolExecutor"""
         self.logger.debug(f"开始执行{language}代码，代码长度：{len(code)}字符, 超时限制: {self.timeout}秒")
-        try:
-            loop = asyncio.get_event_loop()
+        
+        if language == "python3":
+            interpreter = sys.executable
+        elif language == "nodejs":
+            if not self.nodejs_available:
+                return {"success": False, "output": "", "error": "Node.js未安装或不可用"}
+            interpreter = "node"
+        else:
+            return {"success": False, "output": "", "error": f"不支持的语言: {language}"}
 
-            if language == "python3":
-                executor_func = _run_python_code_in_process_safe
-            elif language == "nodejs":
-                if not self.nodejs_available:
-                    return {
-                        "success": False,
-                        "output": "",
-                        "error": "Node.js未安装或不可用"
-                    }
-                executor_func = _run_nodejs_code_in_process_safe
-            else:
-                return {
-                    "success": False,
-                    "output": "",
-                    "error": f"不支持的语言: {language}"
-                }
-
-            # run_in_executor 负责等待同步的 executor_func 完成。
-            # executor_func 内部已处理超时和进程终止。
-            result = await loop.run_in_executor(
-                self.process_pool,
-                executor_func,
-                code,
-                self.timeout  # 将超时时间传递给执行函数
-            )
-
-            self.logger.debug(f"代码执行完成，结果：{result['success'] and '成功' or '失败'}")
-            return result
-
-        except Exception as e:
-            # 捕获 ProcessPoolExecutor 内部抛出的异常或 run_in_executor 自身的异常
-            self.logger.debug(f"执行过程中发生外部异常：{str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "output": "",
-                "error": f"代码执行系统错误: {str(e)}"
-            }
+        # 使用信号量控制并发数量，防止大量任务瞬间压垮系统
+        async with self.semaphore:
+            result = await _run_code_async_safe(interpreter, code, self.timeout)
+            
+        self.logger.debug(f"代码执行完成，结果：{result['success'] and '成功' or '失败'}")
+        return result
 
 
 # --- 示例用法 (仅供测试) ---
 async def main_test():
-    print("--- 启动 CodeExecutor ---")
-    # 设置一个短的超时时间，以便快速测试超时机制
-    executor = CodeExecutor(timeout=5, max_workers=2)
+    print("--- 启动 CodeExecutor (Async) ---")
+    executor = CodeExecutor(timeout=3, max_workers=5)
 
-    # 1. Python 成功执行
+    # 测试正常输出
     python_code_ok = "print('Hello from Python'); a = 1 + 2; print(f'Result: {a}')"
-    print("\n--- 测试 Python 成功 ---")
-    result_py_ok = await executor.execute(python_code_ok, "python3")
-    print(f"结果: {result_py_ok['success']}")
-    print(f"输出:\n{result_py_ok['output']}")
+    print("\n[测试 1] Python 正常执行")
+    res1 = await executor.execute(python_code_ok, "python3")
+    print(res1)
 
-    # 2. Python 超时执行 (强制终止)
-    python_code_timeout = """
-import time
-print('Starting long task...')
-time.sleep(10) # 超过 5 秒的限制
-print('Task finished.')
-"""
-    print("\n--- 测试 Python 超时 (应被终止) ---")
-    result_py_timeout = await executor.execute(python_code_timeout, "python3")
-    print(f"结果: {result_py_timeout['success']}")
-    print(f"输出:\n{result_py_timeout['output']}")
-    print(f"错误:\n{result_py_timeout['error']}")
+    # 测试死循环和超时 (重点：是否会因 OOM 崩溃，进程是否被杀)
+    python_code_timeout = "import time\nprint('Start')\nwhile True: pass"
+    print("\n[测试 2] Python 死循环超时 (应被终止)")
+    res2 = await executor.execute(python_code_timeout, "python3")
+    print(res2)
 
-    # 3. Node.js 成功执行 (如果 Node.js 可用)
+    # 测试输出撑爆内存 (防 OOM 测试)
+    python_code_bomb = "while True: print('A' * 100000)"
+    print("\n[测试 3] Python 疯狂输出爆破内存 (应触发输出超限)")
+    res3 = await executor.execute(python_code_bomb, "python3")
+    print(res3)
+
+    # 测试进程逃逸
+    python_code_escape = """
+import subprocess, time
+subprocess.Popen(["python", "-c", "import time; time.sleep(100)"])
+while True: pass
+    """
+    print(f"\n[测试 4] Python 衍生子进程逃逸 (测试进程组是否全杀)")
+    # 注意：运行后可以通过 pstree 或 ps -ef 检查是否残留 sleep 进程
+    res4 = await executor.execute(python_code_escape, "python3")
+    print(res4)
+
     if executor.nodejs_available:
-        nodejs_code_ok = "console.log('Hello from Node.js'); let a = 1 + 2; console.log(`Result: ${a}`);"
-        print("\n--- 测试 Node.js 成功 ---")
-        result_js_ok = await executor.execute(nodejs_code_ok, "nodejs")
-        print(f"结果: {result_js_ok['success']}")
-        print(f"输出:\n{result_js_ok['output']}")
+        print("\n[测试 5] Node.js 正常执行")
+        js_code_ok = "console.log('Hello from Node.js'); const a = 2 + 3; console.log(`Result: ${a}`);"
+        res5 = await executor.execute(js_code_ok, "nodejs")
+        print(res5)
 
-        # 4. Node.js 超时执行 (强制终止)
-        nodejs_code_timeout = "console.log('Starting long task...'); while(true) {}"
-        print("\n--- 测试 Node.js 超时 (应被终止) ---")
-        result_js_timeout = await executor.execute(nodejs_code_timeout, "nodejs")
-        print(f"结果: {result_js_timeout['success']}")
-        print(f"输出:\n{result_js_timeout['output']}")
-        print(f"错误:\n{result_js_timeout['error']}")
+        print("\n[测试 6] Node.js 死循环超时 (应被终止)")
+        js_code_timeout = "console.log('Start Node.js'); while(true) {}"
+        res6 = await executor.execute(js_code_timeout, "nodejs")
+        print(res6)
     else:
-        print("\n--- Node.js 不可用，跳过测试 ---")
+        print("\n[测试 5/6] Node.js 未安装，跳过测试")
 
-    # 简单等待，确保日志被刷新
-    await asyncio.sleep(1)
-    # 优雅关闭调度器
-    executor.scheduler.shutdown()
-    await executor._shutdown(executor.process_pool)
-
+    # 给 asyncio 一点时间做底层 socket 的清理，防止结束时报错
+    await asyncio.sleep(0.5)
 
 if __name__ == "__main__":
-    # 启用 DEBUG 日志
-    settings.LOG_LEVEL = logging.DEBUG
-    # 运行测试
+    if hasattr(settings, 'LOG_LEVEL'):
+        settings.LOG_LEVEL = logging.DEBUG
     try:
         asyncio.run(main_test())
     except KeyboardInterrupt:

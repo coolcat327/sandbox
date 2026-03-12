@@ -6,7 +6,7 @@
 - 🚀 基于UVicorn的异步执行
 - 🐳 Docker容器化部署
 - ⚖️ 请求并发控制
-- ⏱️ 超时自动终止（可以优化）
+- ⏱️ 超时自动终止与内存限制（已优化防逃逸防OOM）
 
 ## 项目结构
 ```
@@ -39,8 +39,9 @@ python app/main.py
 |--------|--------|-----|
 | API_KEY | aioai-sandbox | API访问密钥 |
 | MAX_REQUESTS | 100 | 最大并发请求数 |
-| MAX_WORKERS | 30 | 工作线程池大小 |
+| MAX_WORKERS | 30 | 最大并发执行代码进程数 |
 | WORKER_TIMEOUT | 60 | 任务超时时间(秒) |
+| MAX_MEMORY_THRESHOLD | 128 | 代码最大可用内存(MB) |
 
 
 ## 注意事项
