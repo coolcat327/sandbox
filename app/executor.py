@@ -2,7 +2,6 @@ import asyncio
 import sys
 import tempfile
 import os
-import subprocess
 import logging
 from typing import Dict, Any
 from config import settings
@@ -18,8 +17,8 @@ except ImportError:
 HAS_SETSID = hasattr(os, 'setsid')
 
 # --- 全局限制配置 ---
-MAX_OUTPUT_SIZE = 10 * 1024 * 1024  # 1MB 输出限制
-MAX_MEMORY_MB = getattr(settings, 'MAX_MEMORY_THRESHOLD', 128) # 默认 128MB 限制
+MAX_OUTPUT_SIZE = 10 * 1024 * 1024  # 10MB 输出限制
+MAX_MEMORY_MB = settings.MAX_MEMORY_THRESHOLD
 
 async def _read_stream_with_limit(stream: asyncio.StreamReader, limit_bytes: int) -> str:
     """按块读取流，超过限制尺寸则抛出异常"""
@@ -48,7 +47,17 @@ def _set_process_limits():
     # 1. 设置进程组组长，防止子孙进程逃逸 (适用于 Unix 体系)
     os.setsid()
     
-    # 2. 操作系统级别的资源限制
+    # 2. 尝试降权运行：如果你用 root 启动的主进程，子进程在这里剥夺权限
+    try:
+        import pwd
+        user_info = pwd.getpwnam('sandbox_user')
+        # 必须先 setgid 再 setuid！否则如果你先变成了普通用户，就没有权限再改变组了。
+        os.setgid(user_info.pw_gid)
+        os.setuid(user_info.pw_uid)
+    except Exception:
+        pass # 如果在没有 sandbox_user 的本地 Mac 测试运行，直接跳过
+    
+    # 3. 操作系统级别的资源限制
     if HAS_RESOURCE:
         # 限制进程最大可用内存 (RLIMIT_AS 在某些 macOS 较新版本下可能不生效，但 Linux 下非常有效)
         max_bytes = MAX_MEMORY_MB * 1024 * 1024

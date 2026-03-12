@@ -91,8 +91,8 @@ RUN useradd -m -u 1000 sandbox_user \
     && chown -R sandbox_user:sandbox_user /app/logs \
     && chmod -R 755 /app/logs
 
-# 切换到非 root 用户运行
-USER sandbox_user
+# 注意：我们去掉了 `USER sandbox_user` 指令，让主进程(FastAPI)以 root 身份运行
+# 这样主程序拥有挂载和改写等最高权限，而在 executor.py 执行具体子进程时再动态降权到 sandbox_user
 
 # 添加健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
