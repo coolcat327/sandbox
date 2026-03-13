@@ -17,7 +17,7 @@ except ImportError:
 HAS_SETSID = hasattr(os, 'setsid')
 
 # --- 全局限制配置 ---
-MAX_OUTPUT_SIZE = 10 * 1024 * 1024  # 10MB 输出限制
+MAX_OUTPUT_SIZE = 20 * 1024 * 1024  # 10MB 输出限制
 MAX_MEMORY_MB = settings.MAX_MEMORY_THRESHOLD
 
 async def _read_stream_with_limit(stream: asyncio.StreamReader, limit_bytes: int) -> str:

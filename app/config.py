@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # 执行器配置
     WORKER_TIMEOUT: float = 60
     # 使用内存限制 MB
-    MAX_MEMORY_THRESHOLD: int = 128
+    MAX_MEMORY_THRESHOLD: int = 1024
 
     # 日志
     LOG_LEVEL: str = "INFO"
