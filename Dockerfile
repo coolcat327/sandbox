@@ -84,12 +84,9 @@ RUN mkdir -p logs
 # 复制app下文件到容器/app目录
 COPY app /app
 
-# 为了安全：创建非 root 用户并限制权限，防止恶意代码删除项目文件
-RUN useradd -m -u 1000 sandbox_user \
-    && chown -R root:root /app \
-    && chmod -R 555 /app \
-    && chown -R sandbox_user:sandbox_user /app/logs \
-    && chmod -R 755 /app/logs
+# 创建沙箱用户，用于执行不可信代码
+RUN groupadd -r sandbox && useradd -r -g sandbox -d /tmp -s /usr/sbin/nologin sandbox \
+    && chmod 1777 /tmp
 
 # 注意：我们去掉了 `USER sandbox_user` 指令，让主进程(FastAPI)以 root 身份运行
 # 这样主程序拥有挂载和改写等最高权限，而在 executor.py 执行具体子进程时再动态降权到 sandbox_user

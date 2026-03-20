@@ -50,12 +50,12 @@ def _set_process_limits():
     # 2. 尝试降权运行：如果你用 root 启动的主进程，子进程在这里剥夺权限
     try:
         import pwd
-        user_info = pwd.getpwnam('sandbox_user')
+        user_info = pwd.getpwnam('sandbox')
         # 必须先 setgid 再 setuid！否则如果你先变成了普通用户，就没有权限再改变组了。
         os.setgid(user_info.pw_gid)
         os.setuid(user_info.pw_uid)
     except Exception:
-        pass # 如果在没有 sandbox_user 的本地 Mac 测试运行，直接跳过
+        pass # 如果在没有 sandbox 的本地 Mac 测试运行，直接跳过
     
     # 3. 操作系统级别的资源限制
     if HAS_RESOURCE:
@@ -88,12 +88,12 @@ async def _run_code_async_safe(
 
     try:
         # 1. 创建临时文件来存储代码
-        # 显式指定 dir="/tmp"；root 写入后，chmod 644 确保 sandbox_user 可以读取并执行
+        # 显式指定 dir="/tmp"；root 写入后，chmod 644 确保 sandbox 可以读取并执行
         with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, dir='/tmp', delete=False) as temp_file:
             temp_file.write(code)
             temp_file_path = temp_file.name
         # tempfile 默认权限是 600 (只有 owner/root 可读)
-        # 必须改为 644，否则降权后的 sandbox_user 子进程无法读取该文件
+        # 必须改为 644，否则降权后的 sandbox 子进程无法读取该文件
         os.chmod(temp_file_path, 0o644)
 
         # 2. 使用 asyncio.create_subprocess_exec 执行代码
