@@ -85,9 +85,9 @@ RUN mkdir -p logs
 COPY app /app
 
 # 创建沙箱用户，用于执行不可信代码
-RUN groupadd -r sandbox && useradd -r -g sandbox -d /tmp -s /usr/sbin/nologin sandbox \
+RUN groupadd -r sandbox && useradd -r -g sandbox -d /tmp -s /bin/bash sandbox \
     && chmod 1777 /tmp
-
+ENV PATH="/app/.venv/bin:$PATH"
 # 注意：我们去掉了 `USER sandbox_user` 指令，让主进程(FastAPI)以 root 身份运行
 # 这样主程序拥有挂载和改写等最高权限，而在 executor.py 执行具体子进程时再动态降权到 sandbox_user
 
