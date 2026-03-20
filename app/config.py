@@ -6,11 +6,11 @@ class Settings(BaseSettings):
     API_KEY: str = "aioai-sandbox"
     
     # 并发控制配置
-    MAX_REQUESTS: int = 100
-    MAX_WORKERS: int = 30
+    MAX_REQUESTS: int = 500
+    MAX_WORKERS: int = 300
     
     # 执行器配置
-    WORKER_TIMEOUT: float = 60
+    WORKER_TIMEOUT: float = 600
     # 使用内存限制 MB
     MAX_MEMORY_THRESHOLD: int = 1024
 
