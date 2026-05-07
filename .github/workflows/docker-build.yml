@@ -72,3 +72,4 @@ jobs:
         name: ${{ steps.save-image.outputs.artifact_name }}
         path: ${{ steps.save-image.outputs.artifact_file }}
         retention-days: 30
+        compression-level: 0
