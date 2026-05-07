@@ -48,22 +48,27 @@ jobs:
         if command -v pigz >/dev/null 2>&1; then
           echo "Using pigz to compress image..."
           pigz "$TAR_FILE"
-          echo "Image saved and compressed to ${TAR_FILE}.gz"
+          COMPRESSED_FILE="${TAR_FILE}.gz"
+          echo "Image saved and compressed to ${COMPRESSED_FILE}"
         elif command -v gzip >/dev/null 2>&1; then
           echo "Using gzip to compress image..."
           gzip "$TAR_FILE"
-          echo "Image saved and compressed to ${TAR_FILE}.gz"
+          COMPRESSED_FILE="${TAR_FILE}.gz"
+          echo "Image saved and compressed to ${COMPRESSED_FILE}"
         else
-          echo "Warning: No compression tool found, image not compressed"
-          echo "Image saved to $TAR_FILE"
+          echo "Warning: No compression tool found, using tar file"
+          COMPRESSED_FILE="$TAR_FILE"
+          echo "Image saved to $COMPRESSED_FILE"
         fi
         
-        # Set output for artifact name
-        echo "artifact_name=${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}-${CURRENT_TIME}-${{ steps.get-image-id.outputs.image_id }}" >> $GITHUB_OUTPUT
+        # Set output for artifact name and file path
+        ARTIFACT_NAME="${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}-${CURRENT_TIME}-${{ steps.get-image-id.outputs.image_id }}"
+        echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+        echo "artifact_file=${COMPRESSED_FILE}" >> $GITHUB_OUTPUT
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.save-image.outputs.artifact_name }}
-        path: ./images/
+        path: ${{ steps.save-image.outputs.artifact_file }}
         retention-days: 30
