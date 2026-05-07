@@ -8,11 +8,13 @@ class Settings(BaseSettings):
     # 并发控制配置
     MAX_REQUESTS: int = 500
     MAX_WORKERS: int = 300
-    
+
     # 执行器配置
     WORKER_TIMEOUT: float = 600
-    # 使用内存限制 MB
+    # 单次请求使用内存限制 MB
     MAX_MEMORY_THRESHOLD: int = 4096
+    # 输出内容限制 MB
+    MAX_OUTPUT_SIZE: int = 100
 
     # 日志
     LOG_LEVEL: str = "INFO"

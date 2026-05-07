@@ -6,6 +6,19 @@ services:
     image: sandbox:0.1.2
     restart: always
     environment:
+      # -------默认配置-------
+      # API_KEY = "aioai-sandbox"
+      # 并发控制配置
+      # MAX_REQUESTS: 500
+      # MAX_WORKERS: 300
+      # 执行器配置
+      # WORKER_TIMEOUT: 600
+      # 单次请求使用内存限制 MB
+      # MAX_MEMORY_THRESHOLD: 4096
+      # 输出内容限制 MB
+      # MAX_OUTPUT_SIZE: 100
+      # -------默认配置-------
+
       # 和api镜像的API_KEY一致
       API_KEY: aioai-sandbox
       MAX_REQUESTS: 100

@@ -17,8 +17,8 @@ except ImportError:
 HAS_SETSID = hasattr(os, 'setsid')
 
 # --- 全局限制配置 ---
-MAX_OUTPUT_SIZE = 20 * 1024 * 1024  # 10MB 输出限制
-MAX_MEMORY_MB = settings.MAX_MEMORY_THRESHOLD
+MAX_OUTPUT_SIZE = settings.MAX_OUTPUT_SIZE * 1024 * 1024
+MAX_MEMORY_MB = settings.MAX_MEMORY_THRESHOLD * 1024 * 1024
 
 async def _read_stream_with_limit(stream: asyncio.StreamReader, limit_bytes: int) -> str:
     """按块读取流，超过限制尺寸则抛出异常"""
@@ -60,7 +60,7 @@ def _set_process_limits():
     # 3. 操作系统级别的资源限制
     if HAS_RESOURCE:
         # 限制进程最大可用内存 (RLIMIT_AS 在某些 macOS 较新版本下可能不生效，但 Linux 下非常有效)
-        max_bytes = MAX_MEMORY_MB * 1024 * 1024
+        max_bytes = MAX_MEMORY_MB
         try:
             resource.setrlimit(resource.RLIMIT_AS, (max_bytes, max_bytes))
         except ValueError:
