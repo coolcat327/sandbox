@@ -37,6 +37,7 @@ jobs:
         echo "image_id=$(docker images -q ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }})" >> $GITHUB_OUTPUT
         
     - name: Save Docker image
+      id: save-image
       run: |
         mkdir -p ./images
         CURRENT_TIME=$(date "+%Y%m%d%H%M%S")
@@ -57,9 +58,12 @@ jobs:
           echo "Image saved to $TAR_FILE"
         fi
         
+        # Set output for artifact name
+        echo "artifact_name=${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}-${CURRENT_TIME}-${{ steps.get-image-id.outputs.image_id }}" >> $GITHUB_OUTPUT
+        
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}
+        name: ${{ steps.save-image.outputs.artifact_name }}
         path: ./images/
         retention-days: 30
