@@ -1,0 +1,65 @@
+name: Build and Save Docker Image
+
+on:
+  push:
+    branches: [ release ]
+  pull_request:
+    branches: [ release ]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker镜像标签'
+        required: false
+        default: '0.1.2'
+
+env:
+  IMAGE_NAME: sandbox
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || '0.1.2' }}
+
+jobs:
+  build-and-save:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      run: |
+        docker build --platform linux/amd64 --build-arg DOCKER_BUILDKIT=1 -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+        
+    - name: Get image ID
+      id: get-image-id
+      run: |
+        echo "image_id=$(docker images -q ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }})" >> $GITHUB_OUTPUT
+        
+    - name: Save Docker image
+      run: |
+        mkdir -p ./images
+        CURRENT_TIME=$(date "+%Y%m%d%H%M%S")
+        TAR_FILE="./images/${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}-${CURRENT_TIME}-${{ steps.get-image-id.outputs.image_id }}.tar"
+        docker save ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} -o "$TAR_FILE"
+        
+        # Compress the image if compression tools are available
+        if command -v pigz >/dev/null 2>&1; then
+          echo "Using pigz to compress image..."
+          pigz "$TAR_FILE"
+          echo "Image saved and compressed to ${TAR_FILE}.gz"
+        elif command -v gzip >/dev/null 2>&1; then
+          echo "Using gzip to compress image..."
+          gzip "$TAR_FILE"
+          echo "Image saved and compressed to ${TAR_FILE}.gz"
+        else
+          echo "Warning: No compression tool found, image not compressed"
+          echo "Image saved to $TAR_FILE"
+        fi
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}
+        path: ./images/
+        retention-days: 30
