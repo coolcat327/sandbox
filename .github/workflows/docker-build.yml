@@ -29,7 +29,7 @@ jobs:
       
     - name: Build Docker image
       run: |
-        docker build --platform linux/amd64 --build-arg DOCKER_BUILDKIT=1 -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+        docker build --platform linux/amd64 --build-arg DOCKER_BUILDKIT=1 -f Dockerfile.github -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
         
     - name: Get image ID
       id: get-image-id
