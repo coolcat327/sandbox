@@ -2,9 +2,9 @@ import asyncio
 import sys
 import tempfile
 import os
-import logging
 from typing import Dict, Any
 from config import settings
+from logger import logger
 import signal
 
 # 尝试导入 resource 模块，用于 Unix/Linux/Mac 下的硬资源限制
@@ -174,7 +174,7 @@ async def _run_code_async_safe(
             try:
                 os.unlink(temp_file_path)
             except Exception as e:
-                logging.error(f"无法删除临时文件 {temp_file_path}: {e}")
+                logger.error(f"无法删除临时文件 {temp_file_path}: {e}")
 
 # --- 辅助函数 ---
 def check_nodejs_available():
@@ -186,13 +186,6 @@ def check_nodejs_available():
 # --- 主执行器类 ---
 class CodeExecutor:
     def __init__(self, timeout: int = 30, max_workers: int = 10):
-        # 初始化日志
-        logging.basicConfig(
-            level=getattr(settings, 'LOG_LEVEL', logging.INFO),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        self.logger = logging.getLogger(__name__)
         self.timeout = timeout
         
         # 注意：使用 Asyncio 模型后，max_workers 概念被弱化。
@@ -203,7 +196,7 @@ class CodeExecutor:
 
     async def execute(self, code: str, language: str = "python3") -> Dict[str, Any]:
         """执行的主入口，移除了 ProcessPoolExecutor"""
-        self.logger.debug(f"开始执行{language}代码，代码长度：{len(code)}字符, 超时限制: {self.timeout}秒")
+        logger.debug(f"开始执行{language}代码，代码长度：{len(code)}字符, 超时限制: {self.timeout}秒")
         
         if language == "python3":
             interpreter = sys.executable
@@ -218,7 +211,7 @@ class CodeExecutor:
         async with self.semaphore:
             result = await _run_code_async_safe(interpreter, code, self.timeout)
             
-        self.logger.debug(f"代码执行完成，结果：{result['success'] and '成功' or '失败'}")
+        logger.debug(f"代码执行完成，结果：{result['success'] and '成功' or '失败'},详情：{result}")
         return result
 
 
@@ -273,8 +266,10 @@ while True: pass
     await asyncio.sleep(0.5)
 
 if __name__ == "__main__":
-    if hasattr(settings, 'LOG_LEVEL'):
-        settings.LOG_LEVEL = logging.DEBUG
+    from loguru import logger
+    import sys
+    logger.remove()
+    logger.add(sys.stderr, level="DEBUG")
     try:
         asyncio.run(main_test())
     except KeyboardInterrupt:
