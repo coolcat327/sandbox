@@ -66,6 +66,19 @@ jobs:
         echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
         echo "artifact_file=${COMPRESSED_FILE}" >> $GITHUB_OUTPUT
         
+    - name: Upload to GitHub Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ steps.save-image.outputs.artifact_file }}
+        tag_name: ${{ env.IMAGE_TAG }}
+        name: Release ${{ env.IMAGE_TAG }}
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
